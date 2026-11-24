@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lucky Draw Remote</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@400;700;800&display=swap');
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Kanit', sans-serif;
+            background: radial-gradient(circle at top, #1e1b4b, #0f172a);
+            color: white;
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            text-align: center;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 222, 125, 0.5);
+            border-radius: 28px;
+            padding: 36px 24px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.45);
+        }
+        h1 { margin: 0 0 8px; font-size: 26px; color: #ffde7d; }
+        p { margin: 0 0 28px; color: #cbd5e1; font-size: 15px; }
+        .spin-btn {
+            width: 220px;
+            height: 220px;
+            border-radius: 50%;
+            border: 6px solid #ffde7d;
+            background: linear-gradient(145deg, #ffa502, #ff4757);
+            color: white;
+            font-family: 'Kanit', sans-serif;
+            font-size: 28px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 12px 35px rgba(255, 71, 87, 0.6), inset 0 4px 10px rgba(255,255,255,0.4);
+            transition: transform 0.12s;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .spin-btn:active { transform: scale(0.94); }
+        .spin-btn:disabled { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.5); }
+        .status {
+            margin-top: 24px;
+            font-size: 14px;
+            padding: 8px 14px;
+            border-radius: 99px;
+            background: rgba(255,255,255,0.1);
+            display: inline-block;
+        }
+        .status.ready { background: rgba(74, 222, 128, 0.2); color: #4ade80; }
+        .status.sent { background: rgba(56, 189, 248, 0.25); color: #7dd3fc; }
+        .status.error { background: rgba(248, 113, 113, 0.25); color: #fca5a5; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>🎁 รีโมทสุ่มของรางวัล</h1>
+        <p>แตะปุ่มด้านล่างเพื่อสั่งสุ่มบนหน้าจอหลัก</p>
+
+        <button id="remoteSpinBtn" class="spin-btn" disabled onclick="sendSpinCommand()">
+            <span style="font-size:48px;">🎲</span>
+            <span>START SPIN!</span>
+        </button>
+
+        <div>
+            <div id="statusBox" class="status">⏳ กำลังเชื่อมต่อหน้าจอหลัก...</div>
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const roomId = params.get('room');
+        const statusBox = document.getElementById('statusBox');
+        const btn = document.getElementById('remoteSpinBtn');
+
+        let client = null;
+
+        if (!roomId) {
+            statusBox.className = 'status error';
+            statusBox.textContent = '❌ ไม่พบรหัสห้อง กรุณาสแกน QR Code ใหม่';
+        } else {
+            client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+                clientId: 'mob_' + Math.random().toString(36).substring(2, 10),
+                clean: true
+            });
+
+            client.on('connect', () => {
+                btn.disabled = false;
+                statusBox.className = 'status ready';
+                statusBox.textContent = '🟢 เชื่อมต่อสำเร็จ พร้อมกดสุ่ม!';
+            });
+
+            client.on('error', () => {
+                statusBox.className = 'status error';
+                statusBox.textContent = '❌ เชื่อมต่อไม่สำเร็จ กรุณารีเฟรชหน้านี้';
+            });
+        }
+
+        function sendSpinCommand() {
+            if (!client || !roomId) return;
+            client.publish(`hrdlucky/spin/${roomId}`, 'SPIN');
+            if (navigator.vibrate) navigator.vibrate(120);
+
+            btn.disabled = true;
+            statusBox.className = 'status sent';
+            statusBox.textContent = '🚀 ส่งคำสั่งสุ่มรางวัลเรียบร้อยแล้ว!';
+
+            setTimeout(() => {
+                btn.disabled = false;
+                statusBox.className = 'status ready';
+                statusBox.textContent = '🟢 พร้อมกดสุ่มอีกครั้ง';
+            }, 6000);
+        }
+    </script>
+</body>
+</html>
